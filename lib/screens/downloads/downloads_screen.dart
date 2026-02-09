@@ -17,7 +17,7 @@ import '../../widgets/download_tree_view.dart';
 import '../main_screen.dart';
 import '../libraries/state_messages.dart';
 import '../../i18n/strings.g.dart';
-
+import 'prowlarr_search_content.dart';
 class DownloadsScreen extends StatefulWidget {
   const DownloadsScreen({super.key});
 
@@ -30,9 +30,15 @@ class DownloadsScreenState extends State<DownloadsScreen> with SingleTickerProvi
   final _queueTabChipFocusNode = FocusNode(debugLabel: 'tab_chip_queue');
   final _tvShowsTabChipFocusNode = FocusNode(debugLabel: 'tab_chip_tv_shows');
   final _moviesTabChipFocusNode = FocusNode(debugLabel: 'tab_chip_movies');
+  final _prowlarrTabChipFocusNode = FocusNode(debugLabel: 'tab_chip_prowlarr');
 
   @override
-  List<FocusNode> get tabChipFocusNodes => [_queueTabChipFocusNode, _tvShowsTabChipFocusNode, _moviesTabChipFocusNode];
+  List<FocusNode> get tabChipFocusNodes => [
+        _queueTabChipFocusNode,
+        _tvShowsTabChipFocusNode,
+        _moviesTabChipFocusNode,
+        _prowlarrTabChipFocusNode,
+      ];
 
   @override
   void initState() {
@@ -46,6 +52,7 @@ class DownloadsScreenState extends State<DownloadsScreen> with SingleTickerProvi
     _queueTabChipFocusNode.dispose();
     _tvShowsTabChipFocusNode.dispose();
     _moviesTabChipFocusNode.dispose();
+    _prowlarrTabChipFocusNode.dispose();
     disposeTabNavigation();
     super.dispose();
   }
@@ -124,6 +131,8 @@ class DownloadsScreenState extends State<DownloadsScreen> with SingleTickerProvi
           _buildTabChip(t.downloads.tvShows, 1),
           const SizedBox(width: 8),
           _buildTabChip(t.downloads.movies, 2),
+          const SizedBox(width: 8),
+          _buildTabChip('Prowlarr', 3),
         ],
       );
     }
@@ -163,6 +172,8 @@ class DownloadsScreenState extends State<DownloadsScreen> with SingleTickerProvi
                           _buildTabChip(t.downloads.tvShows, 1),
                           const SizedBox(width: 8),
                           _buildTabChip(t.downloads.movies, 2),
+                          const SizedBox(width: 8),
+                          _buildTabChip('Prowlarr', 3),
                         ],
                       ),
                     ),
@@ -213,6 +224,11 @@ class DownloadsScreenState extends State<DownloadsScreen> with SingleTickerProvi
                         type: DownloadType.movies,
                         suppressAutoFocus: suppressAutoFocus,
                         onBack: focusTabBar,
+                      ),
+                      ProwlarrSearchContent(
+                        suppressAutoFocus: suppressAutoFocus,
+                        onBack: focusTabBar,
+                        onNavigateLeft: () => MainScreenFocusScope.of(context)?.focusSidebar(),
                       ),
                     ],
                   ),
