@@ -82,6 +82,11 @@ class SettingsService extends BaseSharedPreferencesService {
   static const String _keyProwlarrApiKey = 'prowlarr_api_key';
   static const String _keyProwlarrEnabled = 'prowlarr_enabled';
 
+  // qBittorrent settings
+  static const String _keyQbitServerUrl = 'qbit_server_url';
+  static const String _keyQbitUsername = 'qbit_username';
+  static const String _keyQbitPassword = 'qbit_password';
+
   SettingsService._();
 
   static Future<SettingsService> getInstance() {
@@ -1287,5 +1292,44 @@ class SettingsService extends BaseSharedPreferencesService {
       prefs.remove(_keyProwlarrApiKey),
       prefs.remove(_keyProwlarrEnabled),
     ]);
+  }
+
+  // ============================================================================
+  // qBittorrent Settings
+  // ============================================================================
+
+  /// Set qBittorrent server URL
+  Future<void> setQbitServerUrl(String url) async {
+    await prefs.setString(_keyQbitServerUrl, url);
+  }
+
+  /// Get qBittorrent server URL
+  String getQbitServerUrl() {
+    return prefs.getString(_keyQbitServerUrl) ?? '';
+  }
+
+  /// Set qBittorrent username
+  Future<void> setQbitUsername(String username) async {
+    await prefs.setString(_keyQbitUsername, username);
+  }
+
+  /// Get qBittorrent username
+  String getQbitUsername() {
+    return prefs.getString(_keyQbitUsername) ?? '';
+  }
+
+  /// Set qBittorrent password
+  Future<void> setQbitPassword(String password) async {
+    await prefs.setString(_keyQbitPassword, password);
+  }
+
+  /// Get qBittorrent password
+  String getQbitPassword() {
+    return prefs.getString(_keyQbitPassword) ?? '';
+  }
+
+  /// Check if qBittorrent is configured
+  bool isQbitConfigured() {
+    return getQbitServerUrl().isNotEmpty;
   }
 }

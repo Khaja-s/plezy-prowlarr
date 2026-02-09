@@ -27,7 +27,6 @@ class ProwlarrSearchContent extends StatefulWidget {
 class _ProwlarrSearchContentState extends State<ProwlarrSearchContent> {
   final _searchController = TextEditingController();
   final _searchFocusNode = FocusNode(debugLabel: 'prowlarr_search');
-  final _firstResultFocusNode = FocusNode(debugLabel: 'prowlarr_first_result');
 
   List<ProwlarrRelease> _results = [];
   bool _isSearching = false;
@@ -60,13 +59,18 @@ class _ProwlarrSearchContentState extends State<ProwlarrSearchContent> {
   void dispose() {
     _searchController.dispose();
     _searchFocusNode.dispose();
-    _firstResultFocusNode.dispose();
     super.dispose();
+  }
+
+  void _dismissKeyboard() {
+    FocusScope.of(context).unfocus();
   }
 
   Future<void> _performSearch() async {
     final query = _searchController.text.trim();
     if (query.isEmpty) return;
+
+    _dismissKeyboard();
 
     setState(() {
       _isSearching = true;
@@ -101,7 +105,7 @@ class _ProwlarrSearchContentState extends State<ProwlarrSearchContent> {
 
       if (mounted) {
         if (success) {
-          showSuccessSnackBar(context, 'Sent "${release.title}" to download client');
+          showSuccessSnackBar(context, 'Sent to download client');
         } else {
           showErrorSnackBar(context, 'Failed to send to download client');
         }
@@ -119,11 +123,15 @@ class _ProwlarrSearchContentState extends State<ProwlarrSearchContent> {
       return _buildNotConfiguredState();
     }
 
-    return Column(
-      children: [
-        _buildSearchBar(),
-        Expanded(child: _buildContent()),
-      ],
+    return GestureDetector(
+      onTap: _dismissKeyboard,
+      behavior: HitTestBehavior.opaque,
+      child: Column(
+        children: [
+          _buildSearchBar(),
+          Expanded(child: _buildContent()),
+        ],
+      ),
     );
   }
 
@@ -156,48 +164,45 @@ class _ProwlarrSearchContentState extends State<ProwlarrSearchContent> {
 
   Widget _buildSearchBar() {
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       child: Row(
         children: [
           Expanded(
-            child: TextField(
-              controller: _searchController,
-              focusNode: _searchFocusNode,
-              decoration: InputDecoration(
-                hintText: 'Search torrents...',
-                prefixIcon: const Icon(Symbols.search_rounded),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Symbols.clear_rounded),
-                        onPressed: () {
-                          _searchController.clear();
-                          setState(() {
-                            _results = [];
-                            _hasSearched = false;
-                          });
-                        },
-                      )
-                    : null,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+            child: SizedBox(
+              height: 48,
+              child: TextField(
+                controller: _searchController,
+                focusNode: _searchFocusNode,
+                decoration: InputDecoration(
+                  hintText: 'Search torrents...',
+                  prefixIcon: const Icon(Symbols.search_rounded, size: 20),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24),
+                    borderSide: BorderSide.none,
+                  ),
+                  filled: true,
+                  fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
                 ),
-                filled: true,
-                fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                textInputAction: TextInputAction.search,
+                onSubmitted: (_) => _performSearch(),
+                onChanged: (_) => setState(() {}),
               ),
-              textInputAction: TextInputAction.search,
-              onSubmitted: (_) => _performSearch(),
             ),
           ),
-          const SizedBox(width: 12),
-          FilledButton(
-            onPressed: _isSearching ? null : _performSearch,
-            child: _isSearching
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Text('Search'),
+          const SizedBox(width: 8),
+          SizedBox(
+            height: 48,
+            child: FilledButton(
+              onPressed: _isSearching ? null : _performSearch,
+              child: _isSearching
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Text('Search'),
+            ),
           ),
         ],
       ),
@@ -211,19 +216,28 @@ class _ProwlarrSearchContentState extends State<ProwlarrSearchContent> {
 
     if (_error != null) {
       return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const AppIcon(Symbols.error_rounded, size: 48, color: Colors.red),
-            const SizedBox(height: 16),
-            Text('Search failed: $_error'),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: _performSearch,
-              icon: const Icon(Symbols.refresh_rounded),
-              label: const Text('Retry'),
-            ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const AppIcon(Symbols.error_rounded, size: 48, color: Colors.red),
+              const SizedBox(height: 16),
+              Text('Search failed', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 8),
+              Text(
+                _error!,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                onPressed: _performSearch,
+                icon: const Icon(Symbols.refresh_rounded),
+                label: const Text('Retry'),
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -241,7 +255,7 @@ class _ProwlarrSearchContentState extends State<ProwlarrSearchContent> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Results will be searched across all your Prowlarr indexers',
+              'Results from all Prowlarr indexers',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
@@ -272,13 +286,12 @@ class _ProwlarrSearchContentState extends State<ProwlarrSearchContent> {
 
   Widget _buildResultsList() {
     return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       itemCount: _results.length,
       itemBuilder: (context, index) {
         final release = _results[index];
         return _ReleaseCard(
           release: release,
-          focusNode: index == 0 ? _firstResultFocusNode : null,
           onGrab: () => _grabRelease(release),
         );
       },
@@ -286,15 +299,13 @@ class _ProwlarrSearchContentState extends State<ProwlarrSearchContent> {
   }
 }
 
-/// Card widget for displaying a single release
+/// Card widget for displaying a single release - optimized for mobile
 class _ReleaseCard extends StatelessWidget {
   final ProwlarrRelease release;
-  final FocusNode? focusNode;
   final VoidCallback onGrab;
 
   const _ReleaseCard({
     required this.release,
-    this.focusNode,
     required this.onGrab,
   });
 
@@ -303,7 +314,6 @@ class _ReleaseCard extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: InkWell(
-        focusNode: focusNode,
         borderRadius: BorderRadius.circular(12),
         onTap: onGrab,
         child: Padding(
@@ -311,47 +321,49 @@ class _ReleaseCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Title
               Text(
                 release.title,
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
+              // Info row with Grab button
               Row(
                 children: [
-                  _InfoChip(
-                    icon: Symbols.dns_rounded,
-                    label: release.indexer ?? 'Unknown',
+                  // Indexer
+                  _buildChip(
+                    context,
+                    release.indexer ?? 'Unknown',
+                    color: Theme.of(context).colorScheme.primaryContainer,
+                    textColor: Theme.of(context).colorScheme.onPrimaryContainer,
                   ),
-                  const SizedBox(width: 8),
-                  _InfoChip(
-                    icon: Symbols.storage_rounded,
-                    label: release.formattedSize,
-                  ),
-                  const SizedBox(width: 8),
-                  _InfoChip(
-                    icon: Symbols.arrow_upward_rounded,
-                    label: 'S:${release.seedersDisplay}',
-                    color: _getSeedersColor(context, release.seeders),
-                  ),
-                  const SizedBox(width: 8),
-                  _InfoChip(
-                    icon: Symbols.arrow_downward_rounded,
-                    label: 'L:${release.leechersDisplay}',
+                  const SizedBox(width: 6),
+                  // Size
+                  _buildChip(context, release.formattedSize),
+                  const SizedBox(width: 6),
+                  // Seeders
+                  _buildChip(
+                    context,
+                    '↑${release.seedersDisplay}',
+                    color: _getSeedersColor(release.seeders),
+                    textColor: Colors.white,
                   ),
                   const Spacer(),
-                  FilledButton.tonal(
-                    onPressed: onGrab,
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Symbols.download_rounded, size: 18),
-                        SizedBox(width: 4),
-                        Text('Grab'),
-                      ],
+                  // Grab button
+                  SizedBox(
+                    height: 32,
+                    child: FilledButton.icon(
+                      onPressed: onGrab,
+                      icon: const Icon(Symbols.download_rounded, size: 16),
+                      label: const Text('Grab'),
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        textStyle: const TextStyle(fontSize: 13),
+                      ),
                     ),
                   ),
                 ],
@@ -363,39 +375,28 @@ class _ReleaseCard extends StatelessWidget {
     );
   }
 
-  Color _getSeedersColor(BuildContext context, int? seeders) {
-    if (seeders == null) return Theme.of(context).colorScheme.onSurfaceVariant;
-    if (seeders >= 50) return Colors.green;
-    if (seeders >= 10) return Colors.orange;
-    return Colors.red;
-  }
-}
-
-/// Small chip for displaying release info
-class _InfoChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color? color;
-
-  const _InfoChip({
-    required this.icon,
-    required this.label,
-    this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final textColor = color ?? Theme.of(context).colorScheme.onSurfaceVariant;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 14, color: textColor),
-        const SizedBox(width: 2),
-        Text(
-          label,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: textColor),
+  Widget _buildChip(BuildContext context, String label, {Color? color, Color? textColor}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color ?? Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w500,
+          color: textColor ?? Theme.of(context).colorScheme.onSurfaceVariant,
         ),
-      ],
+      ),
     );
+  }
+
+  Color _getSeedersColor(int? seeders) {
+    if (seeders == null) return Colors.grey;
+    if (seeders >= 50) return Colors.green.shade600;
+    if (seeders >= 10) return Colors.orange.shade600;
+    return Colors.red.shade600;
   }
 }

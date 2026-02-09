@@ -8,6 +8,8 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../models/hotkey_model.dart';
 import '../../models/prowlarr_config.dart';
 import '../../services/prowlarr_client.dart';
+import '../../models/qbit_torrent.dart';
+import '../../services/qbit_client.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -101,6 +103,10 @@ class _SettingsScreenState extends State<SettingsScreen> with FocusableTab {
   static const _kProwlarrServerUrl = 'prowlarr_server_url';
   static const _kProwlarrApiKey = 'prowlarr_api_key';
   static const _kProwlarrTestConnection = 'prowlarr_test_connection';
+  static const _kQbitServerUrl = 'qbit_server_url';
+  static const _kQbitUsername = 'qbit_username';
+  static const _kQbitPassword = 'qbit_password';
+  static const _kQbitTestConnection = 'qbit_test_connection';
   KeyboardShortcutsService? _keyboardService;
   late final bool _keyboardShortcutsSupported = KeyboardShortcutsService.isPlatformSupported();
   bool _isLoading = true;
@@ -136,6 +142,12 @@ class _SettingsScreenState extends State<SettingsScreen> with FocusableTab {
   final _prowlarrApiKeyController = TextEditingController();
   bool _isTestingProwlarrConnection = false;
 
+  // qBittorrent settings
+  final _qbitServerUrlController = TextEditingController();
+  final _qbitUsernameController = TextEditingController();
+  final _qbitPasswordController = TextEditingController();
+  bool _isTestingQbitConnection = false;
+
   @override
   void initState() {
     super.initState();
@@ -154,6 +166,9 @@ class _SettingsScreenState extends State<SettingsScreen> with FocusableTab {
     _focusTracker.dispose();
     _prowlarrServerUrlController.dispose();
     _prowlarrApiKeyController.dispose();
+    _qbitServerUrlController.dispose();
+    _qbitUsernameController.dispose();
+    _qbitPasswordController.dispose();
     super.dispose();
   }
 
@@ -207,6 +222,9 @@ class _SettingsScreenState extends State<SettingsScreen> with FocusableTab {
       _confirmExitOnBack = _settingsService.getConfirmExitOnBack();
       _prowlarrServerUrlController.text = _settingsService.getProwlarrServerUrl();
       _prowlarrApiKeyController.text = _settingsService.getProwlarrApiKey();
+      _qbitServerUrlController.text = _settingsService.getQbitServerUrl();
+      _qbitUsernameController.text = _settingsService.getQbitUsername();
+      _qbitPasswordController.text = _settingsService.getQbitPassword();
       _isLoading = false;
     });
   }
@@ -234,6 +252,8 @@ class _SettingsScreenState extends State<SettingsScreen> with FocusableTab {
                   _buildDownloadsSection(),
                   const SizedBox(height: 24),
                   _buildProwlarrSection(),
+                  const SizedBox(height: 24),
+                  _buildQBitSection(),
                   const SizedBox(height: 24),
                   if (_keyboardShortcutsSupported) ...[_buildKeyboardShortcutsSection(), const SizedBox(height: 24)],
                   _buildCompanionRemoteSection(),
@@ -804,6 +824,140 @@ class _SettingsScreenState extends State<SettingsScreen> with FocusableTab {
     } finally {
       if (mounted) {
         setState(() => _isTestingProwlarrConnection = false);
+      }
+    }
+  }
+
+  Widget _buildQBitSection() {
+    return Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text(
+              'qBittorrent',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: TextField(
+              focusNode: _focusTracker.get(_kQbitServerUrl),
+              controller: _qbitServerUrlController,
+              decoration: const InputDecoration(
+                labelText: 'Server URL',
+                hintText: 'http://192.168.1.100:8080',
+                prefixIcon: Icon(Symbols.dns_rounded),
+                border: OutlineInputBorder(),
+              ),
+              keyboardType: TextInputType.url,
+              onChanged: (value) {
+                _settingsService.setQbitServerUrl(value);
+              },
+            ),
+          ),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: TextField(
+              focusNode: _focusTracker.get(_kQbitUsername),
+              controller: _qbitUsernameController,
+              decoration: const InputDecoration(
+                labelText: 'Username (optional)',
+                hintText: 'admin',
+                prefixIcon: Icon(Symbols.person_rounded),
+                border: OutlineInputBorder(),
+              ),
+              onChanged: (value) {
+                _settingsService.setQbitUsername(value);
+              },
+            ),
+          ),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: TextField(
+              focusNode: _focusTracker.get(_kQbitPassword),
+              controller: _qbitPasswordController,
+              decoration: const InputDecoration(
+                labelText: 'Password (optional)',
+                prefixIcon: Icon(Symbols.key_rounded),
+                border: OutlineInputBorder(),
+              ),
+              obscureText: true,
+              onChanged: (value) {
+                _settingsService.setQbitPassword(value);
+              },
+            ),
+          ),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text(
+              'Leave username/password empty if authentication is disabled',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                focusNode: _focusTracker.get(_kQbitTestConnection),
+                onPressed: _isTestingQbitConnection ? null : _testQbitConnection,
+                icon: _isTestingQbitConnection
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Symbols.check_circle_rounded),
+                label: Text(_isTestingQbitConnection ? 'Testing...' : 'Test Connection'),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _testQbitConnection() async {
+    final serverUrl = _qbitServerUrlController.text.trim();
+
+    if (serverUrl.isEmpty) {
+      showErrorSnackBar(context, 'Please enter Server URL');
+      return;
+    }
+
+    setState(() => _isTestingQbitConnection = true);
+
+    try {
+      final config = QBitConfig(
+        serverUrl: serverUrl,
+        username: _qbitUsernameController.text.trim().isEmpty ? null : _qbitUsernameController.text.trim(),
+        password: _qbitPasswordController.text.isEmpty ? null : _qbitPasswordController.text,
+      );
+      final client = QBitClient(config: config);
+      final success = await client.testConnection();
+
+      if (mounted) {
+        if (success) {
+          showSuccessSnackBar(context, 'Connected to qBittorrent successfully!');
+        } else {
+          showErrorSnackBar(context, 'Failed to connect to qBittorrent');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        showErrorSnackBar(context, 'Connection error: ${e.toString()}');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isTestingQbitConnection = false);
       }
     }
   }
