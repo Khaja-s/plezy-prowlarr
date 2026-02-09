@@ -1,11 +1,13 @@
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import '../models/qbit_torrent.dart';
+import '../utils/app_logger.dart';
 
 /// Client for interacting with qBittorrent Web API
 class QBitClient {
   final QBitConfig config;
   final Dio _dio;
-  String? _sid; // Session ID cookie
+  String? _sidCookie; // Session ID cookie
 
   QBitClient({required this.config})
       : _dio = Dio(BaseOptions(
@@ -14,9 +16,10 @@ class QBitClient {
               : config.serverUrl,
           connectTimeout: const Duration(seconds: 10),
           receiveTimeout: const Duration(seconds: 30),
+          validateStatus: (status) => status != null && status < 500,
         ));
 
-  /// Login to qBittorrent (required for most operations)
+  /// Login to qBittorrent and store session cookie
   Future<bool> login() async {
     try {
       final response = await _dio.post(
@@ -27,64 +30,74 @@ class QBitClient {
         }),
         options: Options(
           contentType: 'application/x-www-form-urlencoded',
-          validateStatus: (status) => status != null && status < 500,
         ),
       );
 
       if (response.statusCode == 200 && response.data == 'Ok.') {
-        // Extract SID cookie
+        // Extract SID cookie from response headers
         final cookies = response.headers['set-cookie'];
         if (cookies != null) {
           for (final cookie in cookies) {
             if (cookie.startsWith('SID=')) {
-              _sid = cookie.split(';').first;
-              break;
+              _sidCookie = cookie.split(';').first;
+              appLogger.d('qBit login successful, got SID cookie');
+              return true;
             }
           }
         }
+        // Some versions don't use SID, login was still successful
+        appLogger.d('qBit login successful (no SID cookie)');
         return true;
       }
-
-      // Try without auth (if no auth required)
-      return await _testNoAuth();
+      
+      appLogger.w('qBit login failed: ${response.data}');
+      return false;
     } catch (e) {
+      appLogger.e('qBit login error', error: e);
       return false;
     }
   }
 
-  Future<bool> _testNoAuth() async {
-    try {
-      final response = await _dio.get('/api/v2/app/version');
-      return response.statusCode == 200;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  /// Get auth headers
+  /// Get request options with auth cookie
   Options get _authOptions {
     return Options(
-      headers: _sid != null ? {'Cookie': _sid} : null,
+      headers: _sidCookie != null ? {'Cookie': _sidCookie} : null,
     );
+  }
+
+  /// Ensure we're logged in before making API calls
+  Future<bool> _ensureLoggedIn() async {
+    if (_sidCookie != null) return true;
+    return await login();
   }
 
   /// Test connection to qBittorrent
   Future<bool> testConnection() async {
     try {
-      // Try login first
-      if (config.username != null && config.password != null) {
-        return await login();
-      }
-      // Or just test version endpoint
-      final response = await _dio.get('/api/v2/app/version');
+      // First try login
+      final loginSuccess = await login();
+      if (!loginSuccess) return false;
+      
+      // Then verify we can get torrents
+      final response = await _dio.get(
+        '/api/v2/torrents/info',
+        options: _authOptions,
+      );
+      
       return response.statusCode == 200;
     } catch (e) {
+      appLogger.e('qBit connection test failed', error: e);
       return false;
     }
   }
 
   /// Get all torrents
   Future<List<QBitTorrent>> getTorrents({String? filter}) async {
+    final loggedIn = await _ensureLoggedIn();
+    if (!loggedIn) {
+      throw Exception('Failed to login to qBittorrent');
+    }
+    
     try {
       final queryParams = <String, dynamic>{};
       if (filter != null) {
@@ -102,14 +115,25 @@ class QBitClient {
             .map((json) => QBitTorrent.fromJson(json as Map<String, dynamic>))
             .toList();
       }
-      return [];
+      
+      // Session expired? Try re-login
+      if (response.statusCode == 403) {
+        _sidCookie = null;
+        return getTorrents(filter: filter);
+      }
+      
+      throw Exception('Failed to get torrents: ${response.statusCode}');
     } catch (e) {
-      throw Exception('Failed to get torrents: $e');
+      appLogger.e('qBit getTorrents error', error: e);
+      rethrow;
     }
   }
 
   /// Pause a torrent
   Future<bool> pauseTorrent(String hash) async {
+    final loggedIn = await _ensureLoggedIn();
+    if (!loggedIn) return false;
+    
     try {
       final response = await _dio.post(
         '/api/v2/torrents/pause',
@@ -118,12 +142,16 @@ class QBitClient {
       );
       return response.statusCode == 200;
     } catch (e) {
+      appLogger.e('qBit pause error', error: e);
       return false;
     }
   }
 
   /// Resume a torrent
   Future<bool> resumeTorrent(String hash) async {
+    final loggedIn = await _ensureLoggedIn();
+    if (!loggedIn) return false;
+    
     try {
       final response = await _dio.post(
         '/api/v2/torrents/resume',
@@ -132,12 +160,16 @@ class QBitClient {
       );
       return response.statusCode == 200;
     } catch (e) {
+      appLogger.e('qBit resume error', error: e);
       return false;
     }
   }
 
   /// Delete a torrent
   Future<bool> deleteTorrent(String hash, {bool deleteFiles = false}) async {
+    final loggedIn = await _ensureLoggedIn();
+    if (!loggedIn) return false;
+    
     try {
       final response = await _dio.post(
         '/api/v2/torrents/delete',
@@ -149,12 +181,16 @@ class QBitClient {
       );
       return response.statusCode == 200;
     } catch (e) {
+      appLogger.e('qBit delete error', error: e);
       return false;
     }
   }
 
   /// Get transfer info (global speeds)
   Future<Map<String, dynamic>?> getTransferInfo() async {
+    final loggedIn = await _ensureLoggedIn();
+    if (!loggedIn) return null;
+    
     try {
       final response = await _dio.get(
         '/api/v2/transfer/info',
@@ -165,6 +201,7 @@ class QBitClient {
       }
       return null;
     } catch (e) {
+      appLogger.e('qBit transfer info error', error: e);
       return null;
     }
   }
