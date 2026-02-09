@@ -18,6 +18,8 @@ import '../main_screen.dart';
 import '../libraries/state_messages.dart';
 import '../../i18n/strings.g.dart';
 import 'prowlarr_search_content.dart';
+import 'qbit_status_content.dart';
+
 class DownloadsScreen extends StatefulWidget {
   const DownloadsScreen({super.key});
 
@@ -31,6 +33,7 @@ class DownloadsScreenState extends State<DownloadsScreen> with SingleTickerProvi
   final _tvShowsTabChipFocusNode = FocusNode(debugLabel: 'tab_chip_tv_shows');
   final _moviesTabChipFocusNode = FocusNode(debugLabel: 'tab_chip_movies');
   final _prowlarrTabChipFocusNode = FocusNode(debugLabel: 'tab_chip_prowlarr');
+  final _qbitTabChipFocusNode = FocusNode(debugLabel: 'tab_chip_qbit');
 
   @override
   List<FocusNode> get tabChipFocusNodes => [
@@ -38,6 +41,7 @@ class DownloadsScreenState extends State<DownloadsScreen> with SingleTickerProvi
         _tvShowsTabChipFocusNode,
         _moviesTabChipFocusNode,
         _prowlarrTabChipFocusNode,
+        _qbitTabChipFocusNode,
       ];
 
   @override
@@ -53,6 +57,7 @@ class DownloadsScreenState extends State<DownloadsScreen> with SingleTickerProvi
     _tvShowsTabChipFocusNode.dispose();
     _moviesTabChipFocusNode.dispose();
     _prowlarrTabChipFocusNode.dispose();
+    _qbitTabChipFocusNode.dispose();
     disposeTabNavigation();
     super.dispose();
   }
@@ -133,6 +138,8 @@ class DownloadsScreenState extends State<DownloadsScreen> with SingleTickerProvi
           _buildTabChip(t.downloads.movies, 2),
           const SizedBox(width: 8),
           _buildTabChip('Prowlarr', 3),
+          const SizedBox(width: 8),
+          _buildTabChip('qBit', 4),
         ],
       );
     }
@@ -174,6 +181,8 @@ class DownloadsScreenState extends State<DownloadsScreen> with SingleTickerProvi
                           _buildTabChip(t.downloads.movies, 2),
                           const SizedBox(width: 8),
                           _buildTabChip('Prowlarr', 3),
+                          const SizedBox(width: 8),
+                          _buildTabChip('qBit', 4),
                         ],
                       ),
                     ),
@@ -226,6 +235,11 @@ class DownloadsScreenState extends State<DownloadsScreen> with SingleTickerProvi
                         onBack: focusTabBar,
                       ),
                       ProwlarrSearchContent(
+                        suppressAutoFocus: suppressAutoFocus,
+                        onBack: focusTabBar,
+                        onNavigateLeft: () => MainScreenFocusScope.of(context)?.focusSidebar(),
+                      ),
+                      QBitStatusContent(
                         suppressAutoFocus: suppressAutoFocus,
                         onBack: focusTabBar,
                         onNavigateLeft: () => MainScreenFocusScope.of(context)?.focusSidebar(),
