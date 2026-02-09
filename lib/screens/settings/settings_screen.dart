@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 import 'package:plezy/widgets/app_icon.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import '../../models/hotkey_model.dart';
+import '../../models/prowlarr_config.dart';
+import '../../services/prowlarr_client.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -96,6 +98,9 @@ class _SettingsScreenState extends State<SettingsScreen> with FocusableTab {
   static const _kResetSettings = 'reset_settings';
   static const _kCheckForUpdates = 'check_for_updates';
   static const _kAbout = 'about';
+  static const _kProwlarrServerUrl = 'prowlarr_server_url';
+  static const _kProwlarrApiKey = 'prowlarr_api_key';
+  static const _kProwlarrTestConnection = 'prowlarr_test_connection';
   KeyboardShortcutsService? _keyboardService;
   late final bool _keyboardShortcutsSupported = KeyboardShortcutsService.isPlatformSupported();
   bool _isLoading = true;
@@ -126,6 +131,11 @@ class _SettingsScreenState extends State<SettingsScreen> with FocusableTab {
   bool _isCheckingForUpdate = false;
   Map<String, dynamic>? _updateInfo;
 
+  // Prowlarr settings
+  final _prowlarrServerUrlController = TextEditingController();
+  final _prowlarrApiKeyController = TextEditingController();
+  bool _isTestingProwlarrConnection = false;
+
   @override
   void initState() {
     super.initState();
@@ -142,6 +152,8 @@ class _SettingsScreenState extends State<SettingsScreen> with FocusableTab {
   @override
   void dispose() {
     _focusTracker.dispose();
+    _prowlarrServerUrlController.dispose();
+    _prowlarrApiKeyController.dispose();
     super.dispose();
   }
 
@@ -193,6 +205,8 @@ class _SettingsScreenState extends State<SettingsScreen> with FocusableTab {
       _useExternalPlayer = _settingsService.getUseExternalPlayer();
       _selectedExternalPlayerName = _settingsService.getSelectedExternalPlayer().name;
       _confirmExitOnBack = _settingsService.getConfirmExitOnBack();
+      _prowlarrServerUrlController.text = _settingsService.getProwlarrServerUrl();
+      _prowlarrApiKeyController.text = _settingsService.getProwlarrApiKey();
       _isLoading = false;
     });
   }
@@ -218,6 +232,8 @@ class _SettingsScreenState extends State<SettingsScreen> with FocusableTab {
                   _buildVideoPlaybackSection(),
                   const SizedBox(height: 24),
                   _buildDownloadsSection(),
+                  const SizedBox(height: 24),
+                  _buildProwlarrSection(),
                   const SizedBox(height: 24),
                   if (_keyboardShortcutsSupported) ...[_buildKeyboardShortcutsSection(), const SizedBox(height: 24)],
                   _buildCompanionRemoteSection(),
@@ -675,6 +691,121 @@ class _SettingsScreenState extends State<SettingsScreen> with FocusableTab {
         ],
       ),
     );
+  }
+
+  Widget _buildProwlarrSection() {
+    return Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text(
+              'Prowlarr',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: TextField(
+              focusNode: _focusTracker.get(_kProwlarrServerUrl),
+              controller: _prowlarrServerUrlController,
+              decoration: const InputDecoration(
+                labelText: 'Server URL',
+                hintText: 'http://192.168.1.100:9696',
+                prefixIcon: Icon(Symbols.dns_rounded),
+                border: OutlineInputBorder(),
+              ),
+              keyboardType: TextInputType.url,
+              onChanged: (value) {
+                _settingsService.setProwlarrServerUrl(value);
+              },
+            ),
+          ),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: TextField(
+              focusNode: _focusTracker.get(_kProwlarrApiKey),
+              controller: _prowlarrApiKeyController,
+              decoration: const InputDecoration(
+                labelText: 'API Key',
+                hintText: 'Your Prowlarr API Key',
+                prefixIcon: Icon(Symbols.key_rounded),
+                border: OutlineInputBorder(),
+              ),
+              obscureText: true,
+              onChanged: (value) {
+                _settingsService.setProwlarrApiKey(value);
+              },
+            ),
+          ),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text(
+              'Find your API key in Prowlarr → Settings → General → Security',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                focusNode: _focusTracker.get(_kProwlarrTestConnection),
+                onPressed: _isTestingProwlarrConnection ? null : _testProwlarrConnection,
+                icon: _isTestingProwlarrConnection
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Symbols.check_circle_rounded),
+                label: Text(_isTestingProwlarrConnection ? 'Testing...' : 'Test Connection'),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _testProwlarrConnection() async {
+    final serverUrl = _prowlarrServerUrlController.text.trim();
+    final apiKey = _prowlarrApiKeyController.text.trim();
+
+    if (serverUrl.isEmpty || apiKey.isEmpty) {
+      showErrorSnackBar(context, 'Please enter both Server URL and API Key');
+      return;
+    }
+
+    setState(() => _isTestingProwlarrConnection = true);
+
+    try {
+      final config = ProwlarrConfig(serverUrl: serverUrl, apiKey: apiKey);
+      final client = ProwlarrClient(config: config);
+      final success = await client.testConnection();
+
+      if (mounted) {
+        if (success) {
+          showSuccessSnackBar(context, 'Connected to Prowlarr successfully!');
+        } else {
+          showErrorSnackBar(context, 'Failed to connect to Prowlarr');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        showErrorSnackBar(context, 'Connection error: ${e.toString()}');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isTestingProwlarrConnection = false);
+      }
+    }
   }
 
   Future<void> _showDownloadLocationDialog() async {

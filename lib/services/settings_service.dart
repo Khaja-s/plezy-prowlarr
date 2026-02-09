@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/services.dart';
 import '../models/hotkey_model.dart';
+import '../models/prowlarr_config.dart';
 import 'package:plezy/utils/app_logger.dart';
 import '../i18n/strings.g.dart';
 import '../models/mpv_config_models.dart';
@@ -75,6 +76,11 @@ class SettingsService extends BaseSharedPreferencesService {
   static const String _keySelectedExternalPlayer = 'selected_external_player';
   static const String _keyCustomExternalPlayers = 'custom_external_players';
   static const String _keyConfirmExitOnBack = 'confirm_exit_on_back';
+  
+  // Prowlarr settings
+  static const String _keyProwlarrServerUrl = 'prowlarr_server_url';
+  static const String _keyProwlarrApiKey = 'prowlarr_api_key';
+  static const String _keyProwlarrEnabled = 'prowlarr_enabled';
 
   SettingsService._();
 
@@ -1205,6 +1211,81 @@ class SettingsService extends BaseSharedPreferencesService {
       'autoSkipIntro': getAutoSkipIntro(),
       'autoSkipCredits': getAutoSkipCredits(),
       'autoSkipDelay': getAutoSkipDelay(),
+      'prowlarrConfig': getProwlarrConfig()?.toJson(),
     };
+  }
+
+  // ============================================================================
+  // Prowlarr Settings
+  // ============================================================================
+
+  /// Set Prowlarr server URL
+  Future<void> setProwlarrServerUrl(String url) async {
+    await prefs.setString(_keyProwlarrServerUrl, url);
+  }
+
+  /// Get Prowlarr server URL
+  String getProwlarrServerUrl() {
+    return prefs.getString(_keyProwlarrServerUrl) ?? '';
+  }
+
+  /// Set Prowlarr API key
+  Future<void> setProwlarrApiKey(String apiKey) async {
+    await prefs.setString(_keyProwlarrApiKey, apiKey);
+  }
+
+  /// Get Prowlarr API key
+  String getProwlarrApiKey() {
+    return prefs.getString(_keyProwlarrApiKey) ?? '';
+  }
+
+  /// Set Prowlarr enabled state
+  Future<void> setProwlarrEnabled(bool enabled) async {
+    await prefs.setBool(_keyProwlarrEnabled, enabled);
+  }
+
+  /// Get Prowlarr enabled state
+  bool getProwlarrEnabled() {
+    return prefs.getBool(_keyProwlarrEnabled) ?? true;
+  }
+
+  /// Get full Prowlarr configuration
+  ProwlarrConfig? getProwlarrConfig() {
+    final serverUrl = getProwlarrServerUrl();
+    final apiKey = getProwlarrApiKey();
+    
+    if (serverUrl.isEmpty || apiKey.isEmpty) {
+      return null;
+    }
+    
+    return ProwlarrConfig(
+      serverUrl: serverUrl,
+      apiKey: apiKey,
+      isEnabled: getProwlarrEnabled(),
+    );
+  }
+
+  /// Set full Prowlarr configuration
+  Future<void> setProwlarrConfig(ProwlarrConfig config) async {
+    await Future.wait([
+      setProwlarrServerUrl(config.serverUrl),
+      setProwlarrApiKey(config.apiKey),
+      setProwlarrEnabled(config.isEnabled),
+    ]);
+  }
+
+  /// Check if Prowlarr is configured and enabled
+  bool isProwlarrConfigured() {
+    final config = getProwlarrConfig();
+    return config != null && config.isValid && config.isEnabled;
+  }
+
+  /// Clear Prowlarr settings
+  Future<void> clearProwlarrConfig() async {
+    await Future.wait([
+      prefs.remove(_keyProwlarrServerUrl),
+      prefs.remove(_keyProwlarrApiKey),
+      prefs.remove(_keyProwlarrEnabled),
+    ]);
   }
 }
