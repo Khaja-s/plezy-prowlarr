@@ -1,4 +1,4 @@
-name: Build Mobile
+name: Build Android
 
 on:
   workflow_dispatch:
@@ -86,61 +86,3 @@ jobs:
             plezy-android-arm64-v8a.tar.gz
             plezy-android-armeabi-v7a.tar.gz
             plezy-android-x86_64.tar.gz
-
-  build-ios:
-    runs-on: macos-26
-    permissions:
-      id-token: write
-      attestations: write
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: "stable"
-          cache: true
-
-      - name: Cache Pub dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.pub-cache
-          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-pub-
-
-      - name: Cache CocoaPods
-        uses: actions/cache@v4
-        with:
-          path: |
-            ios/Pods
-            ~/Library/Caches/CocoaPods
-            ~/.cocoapods
-          key: ${{ runner.os }}-pods-${{ hashFiles('**/Podfile.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-pods-
-
-      - name: Install dependencies
-        run: flutter pub get
-
-      - name: Build iOS (no codesign)
-        run: flutter build ios --release --no-codesign --dart-define=ENABLE_UPDATE_CHECK=true
-
-      - name: Create IPA
-        run: |
-          mkdir -p Payload
-          cp -r build/ios/iphoneos/Runner.app Payload/
-          zip -r plezy-ios.ipa Payload
-
-      - name: Attest IPA
-        uses: actions/attest-build-provenance@v2
-        with:
-          subject-path: plezy-ios.ipa
-
-      - name: Upload IPA
-        uses: actions/upload-artifact@v4
-        with:
-          name: ios-ipa
-          path: plezy-ios.ipa
